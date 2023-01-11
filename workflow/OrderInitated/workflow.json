@@ -1,0 +1,322 @@
+{
+  "definition": {
+    "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+    "actions": {
+      "Catch": {
+        "actions": {
+          "Set_variable": {
+            "inputs": {
+              "name": "isError",
+              "value": "@true"
+            },
+            "runAfter": {},
+            "type": "SetVariable"
+          }
+        },
+        "runAfter": {
+          "Try": [
+            "TIMEDOUT",
+            "FAILED"
+          ]
+        },
+        "type": "Scope"
+      },
+      "Finally": {
+        "actions": {
+          "CatchAll": {
+            "actions": {
+              "Capture_Excep": {
+                "inputs": {
+                  "name": "orderresp",
+                  "value": "Error occurred while processing the order submission"
+                },
+                "runAfter": {},
+                "type": "SetVariable"
+              }
+            },
+            "runAfter": {
+              "Condition": [
+                "TIMEDOUT",
+                "FAILED"
+              ]
+            },
+            "type": "Scope"
+          },
+          "Condition": {
+            "actions": {
+              "Send_message": {
+                "inputs": {
+                  "parameters": {
+                    "entityName": "exception.handler.q",
+                    "message": {
+                      "contentData": "@{body('Parse_JSON')}@{variables('isError')}"
+                    }
+                  },
+                  "serviceProviderConfiguration": {
+                    "connectionName": "serviceBus",
+                    "operationId": "sendMessage",
+                    "serviceProviderId": "/serviceProviders/serviceBus"
+                  }
+                },
+                "runAfter": {},
+                "type": "ServiceProvider"
+              },
+              "Set_variable_2": {
+                "inputs": {
+                  "name": "orderresp",
+                  "value": "Parsing Failed:  Given JSON data is invalid and sent to Exception queue"
+                },
+                "runAfter": {
+                  "Send_message": [
+                    "Succeeded"
+                  ]
+                },
+                "type": "SetVariable"
+              }
+            },
+            "else": {
+              "actions": {
+                "Audit-OrderInitated": {
+                  "inputs": {
+                    "parameters": {
+                      "entityName": "@parameters('auditqueue')",
+                      "message": {
+                        "contentData": {
+                          "customerid": "@body('Parse_JSON')?['customerid']",
+                          "orderdate": "@body('Parse_JSON')?['orderdate']",
+                          "orderdetails": "@body('Parse_JSON')?['orderdetails']",
+                          "status": "INITATED"
+                        }
+                      }
+                    },
+                    "serviceProviderConfiguration": {
+                      "connectionName": "serviceBus",
+                      "operationId": "sendMessage",
+                      "serviceProviderId": "/serviceProviders/serviceBus"
+                    }
+                  },
+                  "runAfter": {},
+                  "type": "ServiceProvider"
+                },
+                "Audit-Order_Accepted": {
+                  "inputs": {
+                    "parameters": {
+                      "entityName": "@parameters('auditqueue')",
+                      "message": {
+                        "contentData": {
+                          "customerid": "@body('Parse_JSON')?['customerid']",
+                          "orderdate": "@body('Parse_JSON')?['orderdate']",
+                          "orderdetails": "@body('Parse_JSON')?['orderdetails']",
+                          "status": "ACCEPTED"
+                        }
+                      }
+                    },
+                    "serviceProviderConfiguration": {
+                      "connectionName": "serviceBus",
+                      "operationId": "sendMessage",
+                      "serviceProviderId": "/serviceProviders/serviceBus"
+                    }
+                  },
+                  "runAfter": {
+                    "Set_variable_3": [
+                      "Succeeded"
+                    ]
+                  },
+                  "type": "ServiceProvider"
+                },
+                "HTTP": {
+                  "inputs": {
+                    "body": "@body('Parse_JSON')",
+                    "method": "POST",
+                    "uri": "https://7707-49-204-129-87.in.ngrok.io"
+                  },
+                  "runAfter": {
+                    "Audit-OrderInitated": [
+                      "Succeeded"
+                    ]
+                  },
+                  "type": "Http"
+                },
+                "Set_variable_3": {
+                  "inputs": {
+                    "name": "orderresp",
+                    "value": "Order Accepted"
+                  },
+                  "runAfter": {
+                    "HTTP": [
+                      "Succeeded"
+                    ]
+                  },
+                  "type": "SetVariable"
+                }
+              }
+            },
+            "expression": {
+              "and": [
+                {
+                  "equals": [
+                    "@variables('isError')",
+                    "@true"
+                  ]
+                }
+              ]
+            },
+            "runAfter": {},
+            "type": "If"
+          }
+        },
+        "runAfter": {
+          "Catch": [
+            "TIMEDOUT",
+            "SKIPPED",
+            "FAILED"
+          ]
+        },
+        "type": "Scope"
+      },
+      "Initialize_HTTP_reponse": {
+        "inputs": {
+          "variables": [
+            {
+              "name": "orderresp",
+              "type": "string"
+            }
+          ]
+        },
+        "runAfter": {
+          "Initialize_variable": [
+            "Succeeded"
+          ]
+        },
+        "type": "InitializeVariable"
+      },
+      "Initialize_variable": {
+        "inputs": {
+          "variables": [
+            {
+              "name": "isError",
+              "type": "boolean",
+              "value": "@false"
+            }
+          ]
+        },
+        "runAfter": {},
+        "type": "InitializeVariable"
+      },
+      "Response": {
+        "inputs": {
+          "body": "@variables('orderresp')",
+          "statusCode": 200
+        },
+        "kind": "http",
+        "runAfter": {
+          "Finally": [
+            "Succeeded"
+          ]
+        },
+        "type": "Response"
+      },
+      "Try": {
+        "actions": {
+          "Parse_JSON": {
+            "inputs": {
+              "content": "@triggerBody()",
+              "schema": {
+                "properties": {
+                  "customerid": {
+                    "type": "string"
+                  },
+                  "customername": {
+                    "type": "string"
+                  },
+                  "orderdate": {
+                    "type": "string"
+                  },
+                  "orderdetails": {
+                    "items": {
+                      "properties": {
+                        "price": {
+                          "type": "integer"
+                        },
+                        "productid": {
+                          "type": "string"
+                        },
+                        "qty": {
+                          "type": "integer"
+                        }
+                      },
+                      "required": [
+                        "productid",
+                        "qty",
+                        "price"
+                      ],
+                      "type": "object"
+                    },
+                    "type": "array"
+                  }
+                },
+                "type": "object"
+              }
+            },
+            "runAfter": {},
+            "type": "ParseJson"
+          }
+        },
+        "runAfter": {
+          "Initialize_HTTP_reponse": [
+            "Succeeded"
+          ]
+        },
+        "type": "Scope"
+      }
+    },
+    "contentVersion": "1.0.0.0",
+    "outputs": {},
+    "triggers": {
+      "manual": {
+        "inputs": {
+          "method": "POST",
+          "schema": {
+            "properties": {
+              "customerid": {
+                "type": "string"
+              },
+              "customername": {
+                "type": "string"
+              },
+              "orderdate": {
+                "type": "string"
+              },
+              "orderdetails": {
+                "items": {
+                  "properties": {
+                    "price": {
+                      "type": "integer"
+                    },
+                    "productid": {
+                      "type": "string"
+                    },
+                    "qty": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "productid",
+                    "qty",
+                    "price"
+                  ],
+                  "type": "object"
+                },
+                "type": "array"
+              }
+            },
+            "type": "object"
+          }
+        },
+        "kind": "Http",
+        "type": "Request"
+      }
+    }
+  },
+  "kind": "Stateful"
+}
