@@ -1,0 +1,74 @@
+{
+  "definition": {
+    "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+    "actions": {
+      "Compose": {
+        "inputs": "@triggerOutputs()?['body']?['contentData']",
+        "runAfter": {},
+        "type": "Compose"
+      },
+      "Create_blob_(V2)": {
+        "inputs": {
+          "body": "@outputs('Compose')",
+          "headers": {
+            "ReadFileMetadataFromServer": true
+          },
+          "host": {
+            "connection": {
+              "referenceName": "azureblob"
+            }
+          },
+          "method": "post",
+          "path": "/v2/datasets/@{encodeURIComponent(encodeURIComponent('AccountNameFromSettings'))}/files",
+          "queries": {
+            "folderPath": "/userdata",
+            "name": "test123.json",
+            "queryParametersSingleEncoded": true
+          }
+        },
+        "runAfter": {
+          "Compose": [
+            "Succeeded"
+          ]
+        },
+        "runtimeConfiguration": {
+          "contentTransfer": {
+            "transferMode": "Chunked"
+          }
+        },
+        "type": "ApiConnection"
+      },
+      "Terminate": {
+        "inputs": {
+          "runStatus": "Succeeded"
+        },
+        "runAfter": {
+          "Create_blob_(V2)": [
+            "Succeeded"
+          ]
+        },
+        "type": "Terminate"
+      }
+    },
+    "contentVersion": "1.0.0.0",
+    "outputs": {},
+    "triggers": {
+      "When_messages_are_available_in_a_queue": {
+        "inputs": {
+          "parameters": {
+            "isSessionsEnabled": false,
+            "queueName": "@parameters('auditqueue')"
+          },
+          "serviceProviderConfiguration": {
+            "connectionName": "serviceBus",
+            "operationId": "receiveQueueMessages",
+            "serviceProviderId": "/serviceProviders/serviceBus"
+          }
+        },
+        "splitOn": "@triggerOutputs()?['body']",
+        "type": "ServiceProvider"
+      }
+    }
+  },
+  "kind": "Stateful"
+}

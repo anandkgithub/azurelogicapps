@@ -1,0 +1,70 @@
+{
+  "definition": {
+    "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+    "actions": {
+      "HTTP_Webhook": {
+        "inputs": {
+          "subscribe": {
+            "body": {
+              "reqobject": "@triggerBody()",
+              "webhookurl": "@listCallbackUrl()"
+            },
+            "method": "POST",
+            "uri": "https://0245-49-204-129-87.in.ngrok.io"
+          },
+          "unsubscribe": {}
+        },
+        "runAfter": {},
+        "type": "HttpWebhook"
+      },
+      "Send_message": {
+        "inputs": {
+          "parameters": {
+            "entityName": "@parameters('auditqueue')",
+            "message": {
+              "contentData": {
+                "customerid": "cust-0001",
+                "orderdate": "2023-10-01",
+                "orderdetails": "2",
+                "status": "COMPLETED"
+              }
+            }
+          },
+          "serviceProviderConfiguration": {
+            "connectionName": "serviceBus",
+            "operationId": "sendMessage",
+            "serviceProviderId": "/serviceProviders/serviceBus"
+          }
+        },
+        "runAfter": {
+          "HTTP_Webhook": [
+            "Succeeded"
+          ]
+        },
+        "type": "ServiceProvider"
+      }
+    },
+    "contentVersion": "1.0.0.0",
+    "outputs": {},
+    "triggers": {
+      "manual": {
+        "inputs": {
+          "schema": {
+            "properties": {
+              "firstname": {
+                "type": "string"
+              },
+              "lastname": {
+                "type": "string"
+              }
+            },
+            "type": "object"
+          }
+        },
+        "kind": "Http",
+        "type": "Request"
+      }
+    }
+  },
+  "kind": "Stateful"
+}
